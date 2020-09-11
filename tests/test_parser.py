@@ -57,3 +57,12 @@ class TestSampleSheetParser:
             for barcode, sample_id in parser.get_barcode_to_sample_mapping().items():
                 mapping.append("\t".join([sample_id] + barcode.split("+")))
             assert sorted(mapping) == sorted(samplesheet_entries)
+
+    def test_samplesheet_parser(self, samplesheet_file):
+        parser = SampleSheetParser(samplesheet_file)
+        mapping = parser.get_barcode_to_sample_mapping()
+        expected_mapping = {
+            "GGGGGGGG+AGATCTCG": "Sample1",
+            "GAAGATTT+TTTACTCT": "Sample2",
+            "GAAGATTT+AAAACGCC": "Sample3"}
+        assert mapping == expected_mapping

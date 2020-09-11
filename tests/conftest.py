@@ -6,7 +6,13 @@ import tempfile
 from unittest import mock
 
 from .context import fastq_demux
-from fastq_demux.parser import FastqFileParser
+from fastq_demux.parser import FastqFileParser, SampleSheetParser
+from fastq_demux.writer import FastqFileWriter
+
+
+@pytest.fixture
+def samplesheet_file() -> str:
+    return "tests/samplesheet.tsv"
 
 
 @pytest.fixture
@@ -36,14 +42,13 @@ def fastq_records():
 
 
 @pytest.fixture
-def fastq_writer():
+def fastq_writer(fastq_records):
+    fastq_writer = dict()
+    for i, record in enumerate(fastq_records):
+        expected_barcode = f"record{i + 1}" if i > 0 else "Unknown"
+        fastq_writer[expected_barcode] = [mock.MagicMock(spec=FastqFileWriter)() for _ in record]
 
-    def _write_record(barcode, records):
-        assert barcode in [record[1][0].split(":")[-1] for record in fastq_records]
-        assert records in fastq_records
-
-    writer = mock.MagicMock()
-    return writer.return_value
+    return fastq_writer
 
 
 @pytest.fixture
@@ -72,3 +77,10 @@ def samplesheet_entries():
         "\t".join(["Sample_2", "AAAACCCC", "TTTTGGGG"]),
         "\t".join(["Sample_3", "AACCCCCC", "TTGGGGGG"]),
         "\t".join(["Sample_4", "CCCCGGGG"])]
+
+
+@pytest.fixture
+def samplesheet_parser(samplesheet_entries):
+    parser = SampleSheetParser(samplesheet_file="this-is-a-samplesheet-file")
+    with mock.patch.object(parser, "get_file_handle", return_value=samplesheet_entries):
+        yield parser

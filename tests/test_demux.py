@@ -7,9 +7,24 @@ import tempfile
 from .context import fastq_demux
 from fastq_demux.demux import FastqDemultiplexer, Demultiplexer
 from fastq_demux.parser import FastqFileParser
+from fastq_demux.writer import FastqFileWriter
 
 
 class TestDemultiplexer:
+
+    def test_get_barcode_file_writers(self, samplesheet_parser, samplesheet_entries):
+        with mock.patch("fastq_demux.demux.SampleSheetParser") as parser_mock, mock.patch("fastq_demux.demux.FastqFileWriter") as writer_mock:
+            parser_mock.return_value = samplesheet_parser
+            demuxer = Demultiplexer(
+                "this-is-fastq-file-r1",
+                "this-is-a-samplesheet",
+                "this-is-a-prefix",
+                "this-is-an-outdir",
+                "this-is-the-unknown-barcode-id")
+            file_writers = demuxer.get_barcode_file_writers()
+            expected_barcodes = ["+".join(entry.split("\t")[1:]) for entry in samplesheet_entries]
+            expected_barcodes.append("this-is-the-unknown-barcode-id")
+            assert list(file_writers.keys()) == expected_barcodes
 
     def test_fastq_file_name_from_sample_id(self):
         prefix = "this-is-a-prefix-"
@@ -46,28 +61,13 @@ class TestDemultiplexer:
 
 class TestFastqDemultiplexer:
 
-    def test_demultiplex_record(self, fastq_parser, fastq_writer, fastq_records):
-
-        demuxer = FastqDemultiplexer(fastq_parser, fastq_writer)
-        for i, record in enumerate(fastq_records):
-            expected_barcode = f"record{i+1}"
-
-            def _write_record(barcode, rec):
-                assert barcode == expected_barcode
-                assert rec == record
-
-            fastq_writer.write_record = _write_record
-            demuxer.demultiplex_record(record)
-
     def test_demultiplex(self, fastq_parser, fastq_writer, fastq_records):
-
-        def _write_record(barcode, records):
-            assert barcode in [record[1][0].split(":")[-1] for record in fastq_records]
-            assert records in fastq_records
-
-        fastq_writer.write_record = _write_record
         demuxer = FastqDemultiplexer(fastq_parser, fastq_writer)
         demuxer.demultiplex()
+        for i, record in enumerate(fastq_records):
+            expected_barcode = record[0][0].split(":")[-1] if i > 0 else "Unknown"
+            for j, read_record in enumerate(record):
+                fastq_writer[expected_barcode][j].write_record.assert_called_once_with(read_record)
 
     def test_single_barcode_from_record(self):
         barcode = "ACGTGT"

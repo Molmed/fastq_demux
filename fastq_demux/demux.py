@@ -27,7 +27,6 @@ class Demultiplexer:
     def get_barcode_file_writers(self) -> Dict[str, List[FastqFileWriter]]:
         parser: SampleSheetParser = SampleSheetParser(self.samplesheet)
         barcode_to_sample_mapping: Dict[str, str] = parser.get_barcode_to_sample_mapping()
-        print(barcode_to_sample_mapping)
         barcode_to_file_writer: Dict[str, List[FastqFileWriter]] = dict()
         # append an entry for the unknown barcodes
         barcode_to_sample_mapping[self.unknown_barcode] = "Sample"
