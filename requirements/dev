@@ -1,3 +1,5 @@
 -r ./prod
 
 pytest
+pytest-cov
+codecov

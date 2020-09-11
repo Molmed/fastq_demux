@@ -28,7 +28,7 @@ class FastqFileParser:
         handles: List[TextIO] = self.get_file_handles()
         try:
             while True:
-                yield [[next(handle)[:-1] for _ in range(4)] for handle in handles]
+                yield [[next(handle).strip() for _ in range(4)] for handle in handles]
         except StopIteration:
             pass
         if not self.ensure_filehandles_empty(handles):
@@ -58,6 +58,6 @@ class SampleSheetParser:
     def get_barcode_to_sample_mapping(self) -> Dict[str, str]:
         barcode_to_sample: Dict[str, str] = dict()
         for row in self.get_file_handle():
-            pcs: List[str] = row[:-1].split("\t")
+            pcs: List[str] = row.strip().split("\t")
             barcode_to_sample["+".join(pcs[1:])] = pcs[0]
         return barcode_to_sample
