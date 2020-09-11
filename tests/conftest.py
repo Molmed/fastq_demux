@@ -11,17 +11,17 @@ from fastq_demux.parser import FastqFileParser
 
 @pytest.fixture
 def fastq_file_r1() -> str:
-    return "./dual-index_Undetermined_S0_L001_R1_001.fastq.gz"
+    return "tests/dual-index_Undetermined_S0_L001_R1_001.fastq.gz"
 
 
 @pytest.fixture
 def fastq_file_r2() -> str:
-    return "./dual-index_Undetermined_S0_L001_R1_001.fastq.gz"
+    return "tests/dual-index_Undetermined_S0_L001_R1_001.fastq.gz"
 
 
 @pytest.fixture
 def fastq_file_short_r2() -> str:
-    return "./dual-index-short_Undetermined_S0_L001_R1_001.fastq.gz"
+    return "tests/dual-index-short_Undetermined_S0_L001_R1_001.fastq.gz"
 
 
 @pytest.fixture
