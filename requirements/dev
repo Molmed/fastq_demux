@@ -1,4 +1,4 @@
--r requirements/prod
+-r ./prod
 
 pytest
 pytest-cov

@@ -1,1 +1,1 @@
-requirements/dev
+-r requirements/dev
