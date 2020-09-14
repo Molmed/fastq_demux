@@ -12,29 +12,29 @@ from fastq_demux.writer import FastqFileWriter
 
 class TestDemultiplexer:
 
-    def test_get_barcode_file_writers(self, samplesheet_parser, samplesheet_entries):
-        with mock.patch("fastq_demux.demux.SampleSheetParser") as parser_mock, mock.patch("fastq_demux.demux.FastqFileWriter") as writer_mock:
-            parser_mock.return_value = samplesheet_parser
+    def test_get_barcode_file_writers(self, fastq_parser, samplesheet_parser, samplesheet_entries):
+        with mock.patch("fastq_demux.demux.FastqFileWriter") as writer_mock:
             demuxer = Demultiplexer(
-                "this-is-fastq-file-r1",
-                "this-is-a-samplesheet",
-                "this-is-a-prefix",
-                "this-is-an-outdir",
-                "this-is-the-unknown-barcode-id")
+                fastq_file_parser=fastq_parser,
+                samplesheet_parser=samplesheet_parser,
+                prefix="this-is-a-prefix",
+                outdir="this-is-an-outdir",
+                unknown_barcode="this-is-the-unknown-barcode-id")
             file_writers = demuxer.get_barcode_file_writers()
             expected_barcodes = ["+".join(entry.split("\t")[1:]) for entry in samplesheet_entries]
             expected_barcodes.append("this-is-the-unknown-barcode-id")
             assert list(file_writers.keys()) == expected_barcodes
 
-    def test_fastq_file_name_from_sample_id(self):
+    def test_fastq_file_name_from_sample_id(self, fastq_parser, samplesheet_parser):
         prefix = "this-is-a-prefix-"
         outdir = tempfile.gettempdir()
         barcode = "this-is-a+barcode"
         sample_id = "this-is-a-sample-id"
 
+        fastq_parser.is_single_end = True
         demux = Demultiplexer(
-            fastq_file_r1="this-is-fastq-r1",
-            samplesheet="this-is-the-samplesheet",
+            fastq_file_parser=fastq_parser,
+            samplesheet_parser=samplesheet_parser,
             prefix=prefix,
             outdir=outdir,
             unknown_barcode="Unknown")
@@ -46,10 +46,10 @@ class TestDemultiplexer:
 
         assert demux.fastq_file_name_from_sample_id(sample_id, barcode) == [expected_filename]
 
+        fastq_parser.is_single_end = False
         demux = Demultiplexer(
-            fastq_file_r1="this-is-fastq-r1",
-            fastq_file_r2="this-is-fastq-r2",
-            samplesheet="this-is-the-samplesheet",
+            fastq_file_parser=fastq_parser,
+            samplesheet_parser=samplesheet_parser,
             prefix=prefix,
             outdir=outdir,
             unknown_barcode="Unknown")

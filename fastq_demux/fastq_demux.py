@@ -4,6 +4,7 @@ import os
 from collections import Counter
 
 import fastq_demux.demux
+from fastq_demux.parser import FastqFileParser, SampleSheetParser
 
 
 @click.command()
@@ -57,18 +58,25 @@ import fastq_demux.demux
     help="output directory where demultiplexed FASTQ files should be written")
 def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir):
     demultiplexer = fastq_demux.demux.Demultiplexer(
-        fastq_file_r1=r1,
-        fastq_file_r2=r2,
-        samplesheet=samplesheet,
+        fastq_file_parser=FastqFileParser(fastq_r1=r1, fastq_r2=r2),
+        samplesheet_parser=SampleSheetParser(samplesheet_file=samplesheet),
         prefix=prefix,
         unknown_barcode=unknown_barcode,
-        outdir=outdir
-    )
+        outdir=outdir)
     (known_counts, unknown_counts) = demultiplexer.demultiplex()
     print("\t".join(["known_barcode", "count", "percent"]))
-    print("\n".join(["\t".join([barcode, str(count), f"{round(100.*count/sum(known_counts.values()), 1)}%"]) for barcode, count in known_counts.most_common()]))
+    print(
+        "\n".join([
+            "\t".join([
+                str(v) for v in counts])
+            for counts in demultiplexer.format_counts(known_counts)]))
+
     print("\t".join(["unknown_barcode", "count", "percent"]))
-    print("\n".join(["\t".join([barcode, str(count), f"{round(100.*count/sum(unknown_counts.values()), 1)}%"]) for barcode, count in unknown_counts.most_common(10)]))
+    print(
+        "\n".join([
+            "\t".join([
+                str(v) for v in counts])
+            for counts in demultiplexer.format_counts(unknown_counts)]))
 
 
 if __name__ == '__main__':
