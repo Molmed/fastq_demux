@@ -2,7 +2,7 @@
 import gzip
 
 from typing import List, Optional, TextIO
-
+from fastq_demux.parser import FastqFileParser
 
 class FastqFileWriter:
 
@@ -13,7 +13,8 @@ class FastqFileWriter:
 
     def open_handle(self) -> None:
         if self.fastq_file_handle is None:
-            self.fastq_file_handle = gzip.open(self.fastq_file, "wt")
+            self.fastq_file_handle = FastqFileParser.open_func(self.fastq_file)(
+                self.fastq_file, "wt")
 
     def close_handle(self) -> None:
         if self.fastq_file_handle is not None:
