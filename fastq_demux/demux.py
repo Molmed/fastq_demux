@@ -24,13 +24,15 @@ class Demultiplexer:
         self.barcode_fastq_writers: Dict[str, List[FastqFileWriter]] = dict()
 
     def get_barcode_file_writers(self) -> Dict[str, List[FastqFileWriter]]:
-        barcode_to_sample_mapping: Dict[str, str] = self.samplesheet_parser.get_barcode_to_sample_mapping()
+        barcode_to_sample_mapping: Dict[str, str] = \
+            self.samplesheet_parser.get_barcode_to_sample_mapping()
         self.barcode_fastq_writers: Dict[str, List[FastqFileWriter]] = dict()
         # append an entry for the unknown barcodes
         barcode_to_sample_mapping[self.unknown_barcode] = "Sample"
         for barcode, sample_id in barcode_to_sample_mapping.items():
             self.barcode_fastq_writers[barcode] = [
-                FastqFileWriter(fastq_file) for fastq_file in self.fastq_file_name_from_sample_id(sample_id, barcode)]
+                FastqFileWriter(fastq_file)
+                for fastq_file in self.fastq_file_name_from_sample_id(sample_id, barcode)]
         return self.barcode_fastq_writers
 
     def fastq_file_name_from_sample_id(self, sample_id: str, barcode: str) -> List[str]:
@@ -49,7 +51,8 @@ class Demultiplexer:
         return demuxer.demultiplex()
 
     @classmethod
-    def format_counts(cls, counts: Counter, n_values: Optional[int] = None) -> List[Tuple[str, int, float]]:
+    def format_counts(
+            cls, counts: Counter, n_values: Optional[int] = None) -> List[Tuple[str, int, float]]:
         return [(
             barcode,
             count,

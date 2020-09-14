@@ -1,7 +1,4 @@
 
-import pytest
-
-from io import StringIO
 from .context import fastq_demux
 from fastq_demux.writer import FastqFileWriter
 from fastq_demux.parser import FastqFileParser

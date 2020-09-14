@@ -20,7 +20,8 @@ class FastqFileParser:
 
     def ensure_filehandles_empty(self, handles: List[TextIO]) -> bool:
         """
-        Checks whether supplied filehandles are empty. Note that this will consume entries from the handles.
+        Checks whether supplied filehandles are empty. Note that this will consume entries from
+        the handles.
         """
         return all([self._ensure_generator_empty(handle) for handle in handles])
 
@@ -32,7 +33,8 @@ class FastqFileParser:
         except StopIteration:
             pass
         if not self.ensure_filehandles_empty(handles):
-            raise Exception(f"Fastq files {self.fastq_r1} and {self.fastq_r2} are not of the same length!")
+            raise Exception(
+                f"Fastq files {self.fastq_r1} and {self.fastq_r2} are not of the same length!")
 
     def get_file_handles(self) -> List[TextIO]:
         handles: List[TextIO] = [self._gzfile_parser(self.fastq_r1)]

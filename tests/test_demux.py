@@ -1,7 +1,6 @@
 
 from unittest import mock
 import os.path
-import pytest
 import tempfile
 
 from .context import fastq_demux

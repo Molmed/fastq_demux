@@ -4,8 +4,10 @@ from fastq_demux import __version__
 setup(
     name='fastq_demux',
     version=__version__,
-    description="A simple program to demultiplex Illumina FASTQ files based on barcodes in the fastq headers",
-    long_description="A simple program to demultiplex Illumina FASTQ files based on barcodes in the fastq headers",
+    description="A simple program to demultiplex Illumina FASTQ files based on barcodes in the "
+                "fastq headers",
+    long_description="A simple program to demultiplex Illumina FASTQ files based on barcodes in "
+                     "the fastq headers",
     keywords=['bioinformatics', 'illumina', 'demultiplexing', 'FASTQ'],
     author='Pontus Larsson, SNP&SEQ Technology Platform, Uppsala University',
     author_email='pontus.larsson@medsci.uu.se',

@@ -1,6 +1,5 @@
 
 import os
-import pytest
 import tempfile
 
 from click.testing import  CliRunner

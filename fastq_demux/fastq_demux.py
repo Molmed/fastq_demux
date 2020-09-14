@@ -1,7 +1,6 @@
 
-import click
 import os
-from collections import Counter
+import click
 
 import fastq_demux.demux
 from fastq_demux.parser import FastqFileParser, SampleSheetParser
@@ -64,20 +63,18 @@ def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir):
         unknown_barcode=unknown_barcode,
         outdir=outdir)
     (known_counts, unknown_counts) = demultiplexer.demultiplex()
-    print("\t".join(["known_barcode", "count", "percent"]))
-    print(
-        "\n".join([
-            "\t".join([
-                str(v) for v in counts])
-            for counts in demultiplexer.format_counts(known_counts)]))
 
-    print("\t".join(["unknown_barcode", "count", "percent"]))
-    print(
-        "\n".join([
-            "\t".join([
-                str(v) for v in counts])
-            for counts in demultiplexer.format_counts(unknown_counts)]))
+    def _print_counts(header, counts):
+        print("\t".join(header))
+        print(
+            "\n".join([
+                "\t".join([
+                    str(v) for v in count])
+                for count in counts]))
 
-
-if __name__ == '__main__':
-    demultiplex()
+    _print_counts(
+        ["known_barcode", "count", "percent"],
+        demultiplexer.format_counts(known_counts))
+    _print_counts(
+        ["unknown_barcode", "count", "percent"],
+        demultiplexer.format_counts(unknown_counts, n_values=10))
