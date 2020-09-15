@@ -1,4 +1,5 @@
 
+import gzip
 import pytest
 
 from .context import fastq_demux
@@ -46,6 +47,20 @@ class TestFastqFileParser:
         assert not parser.ensure_filehandles_empty([
             StringIO(),
             StringIO("this.is.some.contents\n")])
+
+    def test_open_func(self):
+        input_output = {
+            "this-is-a-gzipped-file.gz": gzip.open,
+            "this-is-another-gzipped-file.gzip": gzip.open,
+            "this-is-a-plain-file": open
+        }
+        for input_file, expected_func in input_output.items():
+            assert FastqFileParser.open_func(input_file) == expected_func
+
+    def test__file_parser_handle(self, fastq_file_r1):
+        parser = FastqFileParser(fastq_r1=fastq_file_r1)
+        line = next(parser._file_parser_handle(parser.fastq_r1))
+        assert line.startswith("@") and len(line.split(":")) == 10
 
 
 class TestSampleSheetParser:

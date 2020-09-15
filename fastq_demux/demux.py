@@ -14,12 +14,14 @@ class Demultiplexer:
             samplesheet_parser: SampleSheetParser,
             prefix: str,
             outdir: str,
-            unknown_barcode: str):
+            unknown_barcode: str,
+            no_gzip_compression: bool):
         self.fastq_file_parser: FastqFileParser = fastq_file_parser
         self.samplesheet_parser: SampleSheetParser = samplesheet_parser
         self.prefix: str = prefix
         self.outdir: str = outdir
         self.unknown_barcode: str = unknown_barcode
+        self.no_gzip_compression: bool = no_gzip_compression
         self.is_single_end: bool = fastq_file_parser.is_single_end
         self.barcode_fastq_writers: Dict[str, List[FastqFileWriter]] = dict()
 
@@ -36,10 +38,11 @@ class Demultiplexer:
         return self.barcode_fastq_writers
 
     def fastq_file_name_from_sample_id(self, sample_id: str, barcode: str) -> List[str]:
+        ext = "fastq.gz" if not self.no_gzip_compression else "fastq"
         return [
             os.path.join(
                 self.outdir,
-                f"{self.prefix}{sample_id}_{barcode.replace('+', '-')}_R{read_no}.fastq.gz"
+                f"{self.prefix}{sample_id}_{barcode.replace('+', '-')}_R{read_no}.{ext}"
             ) for read_no in range(1, 3 - int(self.is_single_end))]
 
     def demultiplex(self) -> Tuple[Counter, Counter]:

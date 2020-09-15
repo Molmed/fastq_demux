@@ -1,6 +1,6 @@
 
 import gzip
-from typing import Dict, Iterator, List, Optional, TextIO
+from typing import Callable, Dict, Iterator, List, Optional, TextIO
 
 
 class FastqFileParser:
@@ -37,15 +37,19 @@ class FastqFileParser:
                 f"Fastq files {self.fastq_r1} and {self.fastq_r2} are not of the same length!")
 
     def get_file_handles(self) -> List[TextIO]:
-        handles: List[TextIO] = [self._gzfile_parser(self.fastq_r1)]
+        handles: List[TextIO] = [self._file_parser_handle(self.fastq_r1)]
         if not self.is_single_end:
-            handles.append(self._gzfile_parser(self.fastq_r2))
+            handles.append(self._file_parser_handle(self.fastq_r2))
         return handles
 
     @classmethod
-    def _gzfile_parser(cls, gzipped_file: str) -> TextIO:
-        with gzip.open(gzipped_file, 'rt') as fh:
-            yield from fh
+    def open_func(cls, input_file) -> Callable:
+        gzip_extensions = [".gz", ".gzip"]
+        return gzip.open if any([input_file.endswith(ext) for ext in gzip_extensions]) else open
+
+    def _file_parser_handle(self, input_file: str) -> TextIO:
+        with self.open_func(input_file)(input_file, 'rt') as file_handle:
+            yield from file_handle
 
 
 class SampleSheetParser:
