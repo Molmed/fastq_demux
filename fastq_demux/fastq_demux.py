@@ -55,13 +55,20 @@ from fastq_demux.parser import FastqFileParser, SampleSheetParser
     default=os.getcwd(),
     show_default="Current Working Directory",
     help="output directory where demultiplexed FASTQ files should be written")
-def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir):
+@click.option(
+    "--no-gzip-compression",
+    flag_value=True,
+    show_default=True,
+    help="skip gzip-compression of output FASTQ files"
+)
+def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir, no_gzip_compression):
     demultiplexer = fastq_demux.demux.Demultiplexer(
         fastq_file_parser=FastqFileParser(fastq_r1=r1, fastq_r2=r2),
         samplesheet_parser=SampleSheetParser(samplesheet_file=samplesheet),
         prefix=prefix,
         unknown_barcode=unknown_barcode,
-        outdir=outdir)
+        outdir=outdir,
+        no_gzip_compression=no_gzip_compression)
     (known_counts, unknown_counts) = demultiplexer.demultiplex()
 
     def _print_counts(header, counts):

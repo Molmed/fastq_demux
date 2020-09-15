@@ -18,7 +18,8 @@ class TestDemultiplexer:
                 samplesheet_parser=samplesheet_parser,
                 prefix="this-is-a-prefix",
                 outdir="this-is-an-outdir",
-                unknown_barcode="this-is-the-unknown-barcode-id")
+                unknown_barcode="this-is-the-unknown-barcode-id",
+                no_gzip_compression=False)
             file_writers = demuxer.get_barcode_file_writers()
             expected_barcodes = ["+".join(entry.split("\t")[1:]) for entry in samplesheet_entries]
             expected_barcodes.append("this-is-the-unknown-barcode-id")
@@ -36,11 +37,12 @@ class TestDemultiplexer:
             samplesheet_parser=samplesheet_parser,
             prefix=prefix,
             outdir=outdir,
-            unknown_barcode="Unknown")
+            unknown_barcode="Unknown",
+            no_gzip_compression=True)
 
         expected_filename = os.path.join(
             outdir,
-            f"{prefix}{sample_id}_{barcode.replace('+', '-')}_R1.fastq.gz"
+            f"{prefix}{sample_id}_{barcode.replace('+', '-')}_R1.fastq"
         )
 
         assert demux.fastq_file_name_from_sample_id(sample_id, barcode) == [expected_filename]
@@ -51,7 +53,9 @@ class TestDemultiplexer:
             samplesheet_parser=samplesheet_parser,
             prefix=prefix,
             outdir=outdir,
-            unknown_barcode="Unknown")
+            unknown_barcode="Unknown",
+            no_gzip_compression=False)
+        expected_filename = f"{expected_filename}.gz"
 
         assert demux.fastq_file_name_from_sample_id(sample_id, barcode) == [
             expected_filename,

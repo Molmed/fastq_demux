@@ -26,7 +26,8 @@ class TestFastqDemux:
                 f"--samplesheet={samplesheet_file} "
                 f"--prefix={prefix} "
                 f"--outdir={outdir} "
-                f"--unknown-barcode={unknown_barcode}"
+                f"--unknown-barcode={unknown_barcode} "
+                f"--no-gzip-compression"
             )
             runner = CliRunner()
             result = runner.invoke(
@@ -36,7 +37,7 @@ class TestFastqDemux:
             assert result.exit_code == 0
 
             expected_fastq_files = [
-                f"{prefix}{sample[0]}_{barcode.replace('+', '-')}_R{read_no+1}.fastq.gz"
+                f"{prefix}{sample[0]}_{barcode.replace('+', '-')}_R{read_no+1}.fastq"
                 for read_no in range(2)
                 for barcode, sample in expected_samples.items()]
             assert sorted(expected_fastq_files) == sorted(os.listdir(outdir))
