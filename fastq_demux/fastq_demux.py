@@ -3,8 +3,9 @@ import json
 import os
 import click
 
-from fastq_demux.demux import Demultiplexer, DemultiplexResults
+from fastq_demux.demux import FastqDemultiplexer, DemultiplexResults
 from fastq_demux.parser import FastqFileParser, SampleSheetParser
+from fastq_demux.writer import FastqFileWriterHandler
 
 
 @click.command()
@@ -64,13 +65,20 @@ from fastq_demux.parser import FastqFileParser, SampleSheetParser
 )
 def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir, no_gzip_compression) -> None:
     samplesheet_parser = SampleSheetParser(samplesheet_file=samplesheet)
-    demultiplexer: Demultiplexer = Demultiplexer(
-        fastq_file_parser=FastqFileParser(fastq_r1=r1, fastq_r2=r2),
-        samplesheet_parser=samplesheet_parser,
+    barcode_to_sample_mapping = samplesheet_parser.get_barcode_to_sample_mapping()
+    barcode_to_sample_mapping[unknown_barcode] = "barcode"
+    file_writer_handler = FastqFileWriterHandler(
         prefix=prefix,
-        unknown_barcode=unknown_barcode,
         outdir=outdir,
+        is_single_end=(r2 is None),
         no_gzip_compression=no_gzip_compression)
+    file_writer_handler.fastq_file_writers_from_mapping(barcode_to_sample_mapping)
+
+    fastq_parser = FastqFileParser(fastq_r1=r1, fastq_r2=r2)
+    demultiplexer: FastqDemultiplexer = FastqDemultiplexer(
+        fastq_parser=fastq_parser,
+        fastq_writer=file_writer_handler,
+        unknown_barcode=unknown_barcode)
     results: DemultiplexResults = demultiplexer.demultiplex()
     stats_file: str = os.path.join(
         outdir,

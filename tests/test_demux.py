@@ -1,71 +1,13 @@
 
-from unittest import mock
-import os.path
-import tempfile
-
 from .context import fastq_demux
-from fastq_demux.demux import FastqDemultiplexer, Demultiplexer, DemultiplexResults
-from fastq_demux.parser import FastqFileParser
-from fastq_demux.writer import FastqFileWriter
-
-
-class TestDemultiplexer:
-
-    def test_get_barcode_file_writers(self, fastq_parser, samplesheet_parser, samplesheet_entries):
-        with mock.patch("fastq_demux.demux.FastqFileWriter") as writer_mock:
-            demuxer = Demultiplexer(
-                fastq_file_parser=fastq_parser,
-                samplesheet_parser=samplesheet_parser,
-                prefix="this-is-a-prefix",
-                outdir="this-is-an-outdir",
-                unknown_barcode="this-is-the-unknown-barcode-id",
-                no_gzip_compression=False)
-            file_writers = demuxer.get_barcode_file_writers()
-            expected_barcodes = ["+".join(entry.split("\t")[1:]) for entry in samplesheet_entries]
-            expected_barcodes.append("this-is-the-unknown-barcode-id")
-            assert list(file_writers.keys()) == expected_barcodes
-
-    def test_fastq_file_name_from_sample_id(self, fastq_parser, samplesheet_parser):
-        prefix = "this-is-a-prefix-"
-        outdir = tempfile.gettempdir()
-        barcode = "this-is-a+barcode"
-        sample_id = "this-is-a-sample-id"
-
-        fastq_parser.is_single_end = True
-        demux = Demultiplexer(
-            fastq_file_parser=fastq_parser,
-            samplesheet_parser=samplesheet_parser,
-            prefix=prefix,
-            outdir=outdir,
-            unknown_barcode="Unknown",
-            no_gzip_compression=True)
-
-        expected_filename = os.path.join(
-            outdir,
-            f"{prefix}{sample_id}_{barcode.replace('+', '-')}_R1.fastq"
-        )
-
-        assert demux.fastq_file_name_from_sample_id(sample_id, barcode) == [expected_filename]
-
-        fastq_parser.is_single_end = False
-        demux = Demultiplexer(
-            fastq_file_parser=fastq_parser,
-            samplesheet_parser=samplesheet_parser,
-            prefix=prefix,
-            outdir=outdir,
-            unknown_barcode="Unknown",
-            no_gzip_compression=False)
-        expected_filename = f"{expected_filename}.gz"
-
-        assert demux.fastq_file_name_from_sample_id(sample_id, barcode) == [
-            expected_filename,
-            expected_filename.replace("_R1.", "_R2.")]
+from fastq_demux.demux import FastqDemultiplexer, DemultiplexResults
 
 
 class TestFastqDemultiplexer:
 
     def test_demultiplex(self, fastq_parser, fastq_writer, fastq_records):
-        demuxer = FastqDemultiplexer(fastq_parser, fastq_writer)
+        unknown_barcode = "Unknown"
+        demuxer = FastqDemultiplexer(fastq_parser, fastq_writer, unknown_barcode)
         results = demuxer.demultiplex()
 
         # ensure that the results are as expected and that the correct writers have been used
@@ -75,7 +17,8 @@ class TestFastqDemultiplexer:
             assert counter[expected_barcode] == 1
             expected_barcode = expected_barcode if i > 0 else "Unknown"
             for j, read_record in enumerate(record):
-                fastq_writer[expected_barcode][j].write_record.assert_called_once_with(read_record)
+                fastq_writer.fastq_file_writers[
+                    expected_barcode][j].write_record.assert_called_once_with(read_record)
 
     def test_single_barcode_from_record(self):
         barcode = "ACGTGT"
@@ -125,23 +68,28 @@ class TestDemultiplexResults:
             assert counters[i][barcodes[1]] == 2
             assert counters[i][barcodes[2]] == 0
 
-    def test_format_counts(self):
-        results = DemultiplexResults()
-
-        # add some counts to barcodes
-        barcode_counts = dict(zip(
-            [f"barcode-{i+1}" for i in range(10)], [7*i for i in range(10)]))
+    def test_summarize_counts(self, barcode_counts, demultiplex_results):
         total = sum(barcode_counts.values())
-        for i, (barcode, count) in enumerate(barcode_counts.items()):
-            if i < 5:
-                results.add_known(barcode, n=count)
-            else:
-                results.add_unknown(barcode, n=count)
 
         # verify the summary of the known barcodes and top 2 unknown barcodes
-        summarized_results = results.summarize_counts(counts=results.known_barcodes) + \
-                            results.summarize_counts(counts=results.unknown_barcodes, n_values=2)
+        summarized_results = demultiplex_results.summarize_counts(
+            counts=demultiplex_results.known_barcodes) + demultiplex_results.summarize_counts(
+            counts=demultiplex_results.unknown_barcodes, n_values=2)
         for summary in summarized_results:
             assert summary[0] in barcode_counts
             assert summary[1] == barcode_counts[summary[0]]
             assert summary[2] == round(100. * barcode_counts[summary[0]] / total, 1)
+
+    def test_stats_json(self, samplesheet_parser, demultiplex_results):
+        barcode_to_sample_mapping = samplesheet_parser.get_barcode_to_sample_mapping()
+        stats_json = demultiplex_results.stats_json(barcode_to_sample_mapping)
+        assert stats_json["UnknownBarcodes"]["Barcodes"] == demultiplex_results.unknown_barcodes
+        assert stats_json["ConversionResults"]["Undetermined"]["NumberReads"] == sum(
+            demultiplex_results.unknown_barcodes.values())
+        for barcode_result in stats_json["ConversionResults"]["DemuxResults"]:
+            barcode = barcode_result["IndexMetrics"][0]["IndexSequence"]
+            assert barcode in barcode_to_sample_mapping
+            assert barcode_result["IndexMetrics"][0]["MismatchCounts"]["0"] == \
+                   demultiplex_results.known_barcodes[barcode]
+            assert barcode_result["NumberReads"] == demultiplex_results.known_barcodes[barcode]
+            assert barcode_result["SampleId"] == barcode_to_sample_mapping[barcode]

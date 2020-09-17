@@ -17,7 +17,7 @@ class TestFastqDemux:
             "GGGGGGGG+AGATCTCG": ["Sample1", 22, 44.0],
             "GAAGATTT+TTTACTCT": ["Sample2", 5, 10.0],
             "GAAGATTT+AAAACGCC": ["Sample3", 3, 6.0],
-            unknown_barcode: ["Sample"]}
+            unknown_barcode: ["barcode"]}
 
         with tempfile.TemporaryDirectory(prefix="TestFastqDemux") as outdir:
             args = (

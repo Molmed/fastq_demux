@@ -1,9 +1,8 @@
-import os.path
 
 from collections import Counter
 from typing import Dict, List, Optional, Tuple
-from fastq_demux.parser import FastqFileParser, SampleSheetParser
-from fastq_demux.writer import FastqFileWriter
+from fastq_demux.parser import FastqFileParser
+from fastq_demux.writer import FastqFileWriterHandler
 
 
 class DemultiplexResults:
@@ -52,65 +51,17 @@ class DemultiplexResults:
                 "Barcodes": self.unknown_barcodes}}
 
 
-class Demultiplexer:
-
-    def __init__(
-            self,
-            fastq_file_parser: FastqFileParser,
-            samplesheet_parser: SampleSheetParser,
-            prefix: str,
-            outdir: str,
-            unknown_barcode: str,
-            no_gzip_compression: bool):
-        self.fastq_file_parser: FastqFileParser = fastq_file_parser
-        self.samplesheet_parser: SampleSheetParser = samplesheet_parser
-        self.prefix: str = prefix
-        self.outdir: str = outdir
-        self.unknown_barcode: str = unknown_barcode
-        self.no_gzip_compression: bool = no_gzip_compression
-        self.is_single_end: bool = fastq_file_parser.is_single_end
-        self.barcode_fastq_writers: Dict[str, List[FastqFileWriter]] = dict()
-
-    def get_barcode_file_writers(self) -> Dict[str, List[FastqFileWriter]]:
-        barcode_to_sample_mapping: Dict[str, str] = \
-            self.samplesheet_parser.get_barcode_to_sample_mapping()
-        self.barcode_fastq_writers: Dict[str, List[FastqFileWriter]] = dict()
-        # append an entry for the unknown barcodes
-        barcode_to_sample_mapping[self.unknown_barcode] = "Sample"
-        for barcode, sample_id in barcode_to_sample_mapping.items():
-            self.barcode_fastq_writers[barcode] = [
-                FastqFileWriter(fastq_file)
-                for fastq_file in self.fastq_file_name_from_sample_id(sample_id, barcode)]
-        return self.barcode_fastq_writers
-
-    def fastq_file_name_from_sample_id(self, sample_id: str, barcode: str) -> List[str]:
-        ext = "fastq.gz" if not self.no_gzip_compression else "fastq"
-        return [
-            os.path.join(
-                self.outdir,
-                f"{self.prefix}{sample_id}_{barcode.replace('+', '-')}_R{read_no}.{ext}"
-            ) for read_no in range(1, 3 - int(self.is_single_end))]
-
-    def demultiplex(self) -> DemultiplexResults:
-        self.get_barcode_file_writers()
-        demuxer: FastqDemultiplexer = FastqDemultiplexer(
-            fastq_parser=self.fastq_file_parser,
-            fastq_writer=self.barcode_fastq_writers,
-            unknown_barcode=self.unknown_barcode)
-        return demuxer.demultiplex()
-
-
 class FastqDemultiplexer:
 
     def __init__(
             self,
             fastq_parser: FastqFileParser,
-            fastq_writer: Dict[str, List[FastqFileWriter]],
-            unknown_barcode: str = "Unknown"):
+            fastq_writer: FastqFileWriterHandler,
+            unknown_barcode: str):
         self.fastq_parser: FastqFileParser = fastq_parser
-        self.fastq_writer: Dict[str, List[FastqFileWriter]] = fastq_writer
-        self.demultiplex_results: DemultiplexResults = DemultiplexResults()
+        self.fastq_writer: FastqFileWriterHandler = fastq_writer
         self.unknown_barcode: str = unknown_barcode
+        self.demultiplex_results: DemultiplexResults = DemultiplexResults()
 
     def demultiplex(self) -> DemultiplexResults:
         for record in self.fastq_parser.fastq_records():
@@ -119,23 +70,12 @@ class FastqDemultiplexer:
 
     def demultiplex_record(self, fastq_record: List[List[str]]):
         barcode: str = self.barcode_from_record(fastq_record[0])
-
-        def _writers(bcode, count_fn) -> List[FastqFileWriter]:
-            writer_list: List[FastqFileWriter] = self.fastq_writer[bcode]
-            count_fn(barcode)
-            return writer_list
-
         try:
-            writers: List[FastqFileWriter] = _writers(
-                barcode,
-                self.demultiplex_results.add_known)
+            self.fastq_writer.write_fastq_record(barcode, fastq_record)
+            self.demultiplex_results.add_known(barcode)
         except KeyError:
-            writers: List[FastqFileWriter] = _writers(
-                self.unknown_barcode,
-                self.demultiplex_results.add_unknown)
-
-        for read_no, record in enumerate(fastq_record):
-            writers[read_no].write_record(record)
+            self.fastq_writer.write_fastq_record(self.unknown_barcode, fastq_record)
+            self.demultiplex_results.add_unknown(barcode)
 
     @classmethod
     def barcode_from_record(cls, record: List[str]) -> str:
