@@ -14,9 +14,9 @@ class TestFastqDemux:
         prefix = "this-is-a-prefix"
         unknown_barcode = "this-is-the-unknown-prefix"
         expected_samples = {
-            "GGGGGGGG+AGATCTCG": ["Sample1", 22, 73.3],
-            "GAAGATTT+TTTACTCT": ["Sample2", 5, 16.7],
-            "GAAGATTT+AAAACGCC": ["Sample3", 3, 10.0],
+            "GGGGGGGG+AGATCTCG": ["Sample1", 22, 44.0],
+            "GAAGATTT+TTTACTCT": ["Sample2", 5, 10.0],
+            "GAAGATTT+AAAACGCC": ["Sample3", 3, 6.0],
             unknown_barcode: ["Sample"]}
 
         with tempfile.TemporaryDirectory(prefix="TestFastqDemux") as outdir:
@@ -40,7 +40,11 @@ class TestFastqDemux:
                 f"{prefix}{sample[0]}_{barcode.replace('+', '-')}_R{read_no+1}.fastq"
                 for read_no in range(2)
                 for barcode, sample in expected_samples.items()]
-            assert sorted(expected_fastq_files) == sorted(os.listdir(outdir))
+            assert sorted(
+                expected_fastq_files) == sorted(
+                filter(lambda x: x.endswith(".fastq"), os.listdir(outdir)))
+
+            assert f"{prefix}demux_Stats.json" in os.listdir(outdir)
 
             for line in result.stdout.split("\n"):
                 if not line:
