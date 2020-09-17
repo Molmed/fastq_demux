@@ -1,8 +1,9 @@
 
+import json
 import os
 import click
 
-import fastq_demux.demux
+from fastq_demux.demux import Demultiplexer, DemultiplexResults
 from fastq_demux.parser import FastqFileParser, SampleSheetParser
 
 
@@ -61,15 +62,25 @@ from fastq_demux.parser import FastqFileParser, SampleSheetParser
     show_default=True,
     help="skip gzip-compression of output FASTQ files"
 )
-def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir, no_gzip_compression):
-    demultiplexer = fastq_demux.demux.Demultiplexer(
+def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir, no_gzip_compression) -> None:
+    samplesheet_parser = SampleSheetParser(samplesheet_file=samplesheet)
+    demultiplexer: Demultiplexer = Demultiplexer(
         fastq_file_parser=FastqFileParser(fastq_r1=r1, fastq_r2=r2),
-        samplesheet_parser=SampleSheetParser(samplesheet_file=samplesheet),
+        samplesheet_parser=samplesheet_parser,
         prefix=prefix,
         unknown_barcode=unknown_barcode,
         outdir=outdir,
         no_gzip_compression=no_gzip_compression)
-    (known_counts, unknown_counts) = demultiplexer.demultiplex()
+    results: DemultiplexResults = demultiplexer.demultiplex()
+    stats_file: str = os.path.join(
+        outdir,
+        f"{prefix}demux_Stats.json")
+    with open(stats_file, 'wt') as fh:
+        json.dump(
+            results.stats_json(
+                barcode_to_sample_mapping=samplesheet_parser.get_barcode_to_sample_mapping()),
+            fh,
+            indent=2)
 
     def _print_counts(header, counts):
         print("\t".join(header))
@@ -81,7 +92,8 @@ def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir, no_gzip_co
 
     _print_counts(
         ["known_barcode", "count", "percent"],
-        demultiplexer.format_counts(known_counts))
+        results.summarize_counts(results.known_barcodes))
     _print_counts(
         ["unknown_barcode", "count", "percent"],
-        demultiplexer.format_counts(unknown_counts, n_values=10))
+        results.summarize_counts(results.unknown_barcodes, n_values=10))
+

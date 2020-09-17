@@ -11,6 +11,7 @@ A simple program to demultiplex Illumina FASTQ files based on barcodes in the FA
 - [Basic usage](#basic-usage)
     - [Sample sheet](#sample-sheet)
 - [Docker](#docker)
+- [Performance](#performance)
 
 
 ## Installation
@@ -36,6 +37,11 @@ providing a barcode-to-sample mapping (with `--samplesheet`).
 ```
 fastq_demux --R1 tests/dual-index-short_Undetermined_S0_L001_R1_001.fastq.gz --samplesheet tests/samplesheet.tsv
 ```
+
+For each sample, a forward (R1) and a reverse (R2, if input is paired-end) FASTQ file will be written to the output 
+folder. In addition, the reads not matching any of the barcodes in the sample sheet will be written to the R1 (and R2) 
+files for unknown barcodes. Summary statistics on the number of reads per barcode etc. are written to a json-formatted 
+output file.
 
 ### Sample sheet
 The sample sheet should have two or three columns for single or dual index reads, respectively. The columns are 
@@ -63,18 +69,26 @@ Run the docker image without arguments to see usage:
 docker run fastq_demux:master
 ```
 
-Example usage:
-
-```
-docker run fastq_demux:master \
---R1 /code/tests/dual-index-short_Undetermined_S0_L001_R1_001.fastq.gz \
---samplesheet /code/tests/samplesheet.tsv
-```
-
-Another example using a data directory mounted into the container from the local filesystem:
+Example usage with a data directory mounted into the container from the local filesystem:
 
 ```
 docker run -v $(pwd)/tests:/data fastq_demux:master \
 --R1 /data/dual-index-short_Undetermined_S0_L001_R1_001.fastq.gz \
 --samplesheet /data/samplesheet.tsv
 ```
+
+## Performance
+
+FASTQ demux uses python's zlib module for gzip compression and decompression which is quite slow. Most of 
+the runtime will be spent compressing data. Therefore, if possible, it's much quicker to work
+with uncompressed files and do the compression elsewhere. You can give the program uncompressed files. 
+With the `--no-gzip-compression` command line switch, uncompressed FASTQ files are written.
+
+As an example, below is a table with the CPU time required to demultiplex 10 samples from 5M dual-index read pairs, 
+using combinations of compressed and uncompressed FASTQ as input/output:
+
+`fastq.gz/fastq.gz` | `fastq.gz/fastq` | `fastq/fastq.gz` | `fastq/fastq` |
+------------------: | ---------------: | ---------------: | ------------: |
+`14m56.664s`        | `1m5.816s`       | `14m26.243s`     | `0m35.434s`   |
+
+It's obvious that compressing output on-the-fly is very expensive.
