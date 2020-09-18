@@ -101,11 +101,15 @@ def barcode_counts(samplesheet_parser):
 
 
 @pytest.fixture
-def demultiplex_results(barcode_counts):
-    results = DemultiplexResults()
-    for i, (barcode, count) in enumerate(barcode_counts.items()):
-        if i < 2:
-            results.add_known(barcode, n=count)
-        else:
-            results.add_unknown(barcode, n=count)
+def demultiplex_results(barcode_counts, samplesheet_parser):
+    barcode_to_sample_mapping = samplesheet_parser.get_barcode_to_sample_mapping()
+    # create a DemultiplexResults object using only a subset of the barcodes as "knowns"
+    known_barcodes = list(barcode_to_sample_mapping.keys())[2:]
+    results = DemultiplexResults(
+        barcode_to_sample_mapping={
+            barcode: barcode_to_sample_mapping[barcode] for barcode in known_barcodes})
+
+    # add some counts to the results
+    for barcode, count in barcode_counts.items():
+        results.add(barcode, n=count)
     return results

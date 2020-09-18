@@ -75,18 +75,19 @@ def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir, no_gzip_co
     file_writer_handler.fastq_file_writers_from_mapping(barcode_to_sample_mapping)
 
     fastq_parser = FastqFileParser(fastq_r1=r1, fastq_r2=r2)
+    results = DemultiplexResults(barcode_to_sample_mapping=barcode_to_sample_mapping)
     demultiplexer: FastqDemultiplexer = FastqDemultiplexer(
         fastq_parser=fastq_parser,
         fastq_writer=file_writer_handler,
+        demultiplex_results=results,
         unknown_barcode=unknown_barcode)
-    results: DemultiplexResults = demultiplexer.demultiplex()
+    demultiplexer.demultiplex()
     stats_file: str = os.path.join(
         outdir,
         f"{prefix}demux_Stats.json")
     with open(stats_file, 'wt') as fh:
         json.dump(
-            results.stats_json(
-                barcode_to_sample_mapping=samplesheet_parser.get_barcode_to_sample_mapping()),
+            results.stats_json(),
             fh,
             indent=2)
 
@@ -100,8 +101,7 @@ def demultiplex(r1, r2, samplesheet, prefix, unknown_barcode, outdir, no_gzip_co
 
     _print_counts(
         ["known_barcode", "count", "percent"],
-        results.summarize_counts(results.known_barcodes))
+        results.summarize_counts(barcode_set="known"))
     _print_counts(
         ["unknown_barcode", "count", "percent"],
-        results.summarize_counts(results.unknown_barcodes, n_values=10))
-
+        results.summarize_counts(barcode_set="unknown", n_values=10))
