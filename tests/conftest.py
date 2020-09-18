@@ -7,7 +7,8 @@ from unittest import mock
 
 from .context import fastq_demux
 from fastq_demux.parser import FastqFileParser, SampleSheetParser
-from fastq_demux.writer import FastqFileWriter
+from fastq_demux.writer import FastqFileWriter, FastqFileWriterHandler
+from fastq_demux.demux import DemultiplexResults
 
 
 @pytest.fixture
@@ -43,10 +44,17 @@ def fastq_records():
 
 @pytest.fixture
 def fastq_writer(fastq_records):
-    fastq_writer = dict()
+    fastq_writer = FastqFileWriterHandler(
+        prefix="this-is-a-prefix",
+        outdir="this-is-the-outdir",
+        is_single_end=(len(fastq_records[0]) == 1),
+        no_gzip_compression=False
+    )
+    fastq_writer.fastq_file_writers = dict()
     for i, record in enumerate(fastq_records):
-        expected_barcode = f"record{i + 1}" if i > 0 else "Unknown"
-        fastq_writer[expected_barcode] = [mock.MagicMock(spec=FastqFileWriter)() for _ in record]
+        barcode = f"record{i + 1}" if i > 0 else "Unknown"
+        fastq_writer.fastq_file_writers[barcode] = [
+            mock.MagicMock(spec=FastqFileWriter)() for _ in record]
 
     return fastq_writer
 
@@ -84,3 +92,20 @@ def samplesheet_parser(samplesheet_entries):
     parser = SampleSheetParser(samplesheet_file="this-is-a-samplesheet-file")
     with mock.patch.object(parser, "get_file_handle", return_value=samplesheet_entries):
         yield parser
+
+
+@pytest.fixture
+def barcode_counts(samplesheet_parser):
+    barcodes = list(samplesheet_parser.get_barcode_to_sample_mapping().keys())
+    return dict(zip(barcodes, [7 * i for i, _ in enumerate(barcodes)]))
+
+
+@pytest.fixture
+def demultiplex_results(barcode_counts):
+    results = DemultiplexResults()
+    for i, (barcode, count) in enumerate(barcode_counts.items()):
+        if i < 2:
+            results.add_known(barcode, n=count)
+        else:
+            results.add_unknown(barcode, n=count)
+    return results
