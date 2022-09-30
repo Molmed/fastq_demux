@@ -131,34 +131,21 @@ class FastqDemultiplexer:
 
         :return: the DemultiplexResults instance containing the statistics from the demultiplexing
         """
-        for record in self.fastq_parser.fastq_records():
-            self.demultiplex_record(record)
+        for record, barcode in self.fastq_parser.fastq_records():
+            self.demultiplex_record(record, barcode)
         return self.demultiplex_results
 
-    def demultiplex_record(self, fastq_record: List[List[str]]):
+    def demultiplex_record(self, fastq_record: List[List[str]], barcode: str) -> None:
         """
         Demultiplex a FASTQ read (or read pair) using the barcode in the FASTQ header and write it
         to the corresponding FastqFileWriter
 
         :param fastq_record: a 1- or 2-element list of FASTQ reads for single-end or paired-end,
         respectively. Each read is a list of 4 strings
+        :param barcode: a string containing the barcode belonging to the record
         """
-        barcode: str = self.barcode_from_record(fastq_record[0])
         try:
             self.fastq_writer.write_fastq_record(barcode, fastq_record)
         except KeyError:
             self.fastq_writer.write_fastq_record(self.unknown_barcode, fastq_record)
         self.demultiplex_results.add(barcode)
-
-    @classmethod
-    def barcode_from_record(cls, record: List[str]) -> str:
-        """
-        Extract the barcode from a FASTQ read header. The header is expected to be ":"-delimited
-        according to the bcl2fastq output format and the barcode is expected to be the last element
-        when splitting on ":"
-
-        :param record: a list of strings representing a FASTQ read. Only the first element (the
-        header string) will be accessed
-        :return:
-        """
-        return record[0].split(":")[-1]

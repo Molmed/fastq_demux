@@ -5,52 +5,61 @@ from fastq_demux.demux import FastqDemultiplexer, DemultiplexResults
 
 class TestFastqDemultiplexer:
 
-    def test_demultiplex(self, fastq_parser, fastq_writer, fastq_records):
+    @staticmethod
+    def _helper_demultiplex(parser, writer, records):
         unknown_barcode = "Unknown"
         demultiplex_results = DemultiplexResults(barcode_to_sample_mapping={})
         demuxer = FastqDemultiplexer(
-            fastq_parser, fastq_writer, demultiplex_results, unknown_barcode)
+            parser, writer, demultiplex_results, unknown_barcode)
         demuxer.demultiplex()
 
         # ensure that the results are as expected and that the correct writers have been used
-        for i, record in enumerate(fastq_records):
-            expected_barcode = record[0][0].split(":")[-1]
+        for i, (record, expected_barcode) in enumerate(records):
             assert demultiplex_results.barcode_counts[expected_barcode] == 1
             expected_barcode = expected_barcode if i > 0 else "Unknown"
             for j, read_record in enumerate(record):
-                fastq_writer.fastq_file_writers[
+                writer.fastq_file_writers[
                     expected_barcode][j].write_record.assert_called_once_with(read_record)
 
-    def test_single_barcode_from_record(self):
-        barcode = "ACGTGT"
-        record = [
-            ":".join([
-                "@",
-                "this",
-                "-is-",
-                "a",
-                " _header_",
-                "w1th[",
-                "s]ome",
-                "0dd",
-                "characters",
-                "and",
-                barcode]),
-            "this-is-the-nucleotide-sequence",
-            "+",
-            "this-is-the-quality-sequence"
-        ]
-        assert FastqDemultiplexer.barcode_from_record(record) == barcode
+    def test_demultiplex_single_end_index(
+            self,
+            single_end_dual_index_fastq_parser,
+            single_end_dual_index_fastq_writer,
+            single_end_dual_index_fastq_records):
+        self._helper_demultiplex(
+            single_end_dual_index_fastq_parser,
+            single_end_dual_index_fastq_writer,
+            single_end_dual_index_fastq_records)
 
-    def test_dual_barcode_from_record(self):
-        barcode = "ACGTGTAG+TGACATGA"
-        record = [
-            ":".join(["@", "this", "-is-", "a", " _header_", "w1th[", "s]ome", "0dd", "characters", "and", barcode]),
-            "this-is-the-nucleotide-sequence",
-            "+",
-            "this-is-the-quality-sequence"
-        ]
-        assert FastqDemultiplexer.barcode_from_record(record) == barcode
+    def test_demultiplex_header_index(
+            self,
+            single_end_dual_index_header_fastq_parser,
+            single_end_dual_index_fastq_writer,
+            single_end_dual_index_fastq_records):
+        self._helper_demultiplex(
+            single_end_dual_index_header_fastq_parser,
+            single_end_dual_index_fastq_writer,
+            single_end_dual_index_fastq_records)
+
+    def test_demultiplex_single_index(
+            self,
+            single_end_single_index_fastq_parser,
+            single_end_single_index_fastq_writer,
+            single_end_single_index_fastq_records):
+        self._helper_demultiplex(
+            single_end_single_index_fastq_parser,
+            single_end_single_index_fastq_writer,
+            single_end_single_index_fastq_records)
+
+    def test_demultiplex_dual_index(
+            self,
+            paired_end_dual_index_fastq_parser,
+            paired_end_dual_index_fastq_writer,
+            paired_end_dual_index_fastq_records):
+        self._helper_demultiplex(
+            paired_end_dual_index_fastq_parser,
+            paired_end_dual_index_fastq_writer,
+            paired_end_dual_index_fastq_records)
 
 
 class TestDemultiplexResults:
