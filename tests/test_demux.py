@@ -1,6 +1,8 @@
 
+import pytest
+
 from .context import fastq_demux
-from fastq_demux.demux import FastqDemultiplexer, DemultiplexResults
+from fastq_demux.demux import FastqDemultiplexer, FastqMismatchDemultiplexer, DemultiplexResults
 
 
 class TestFastqDemultiplexer:
@@ -9,8 +11,8 @@ class TestFastqDemultiplexer:
     def _helper_demultiplex(parser, writer, records):
         unknown_barcode = "Unknown"
         demultiplex_results = DemultiplexResults(barcode_to_sample_mapping={})
-        demuxer = FastqDemultiplexer(
-            parser, writer, demultiplex_results, unknown_barcode)
+        demuxer = FastqDemultiplexer.create_fastq_demultiplexer(
+            parser, writer, demultiplex_results, unknown_barcode, mismatches=0)
         demuxer.demultiplex()
 
         # ensure that the results are as expected and that the correct writers have been used
@@ -60,6 +62,119 @@ class TestFastqDemultiplexer:
             paired_end_dual_index_fastq_parser,
             paired_end_dual_index_fastq_writer,
             paired_end_dual_index_fastq_records)
+
+
+class TestFastqMismatchDemultiplexer:
+
+    @staticmethod
+    def _get_demultiplex_results(known_barcodes):
+        return DemultiplexResults(
+            barcode_to_sample_mapping={
+                bc: f"sample_{bc}" for bc in known_barcodes
+            })
+
+    def test_hamming_distance(self):
+        assert FastqMismatchDemultiplexer.hamming_distance("ABCD", "ABCD") == 0
+        assert FastqMismatchDemultiplexer.hamming_distance("ABCD", "ABC_") == 1
+        assert FastqMismatchDemultiplexer.hamming_distance("ABCD", "__CD") == 2
+        # it is expected that it's only along the length of the shortest string that the comparison
+        # is made
+        assert FastqMismatchDemultiplexer.hamming_distance("ABCD", "ABC") == 0
+
+    def test_match_mismatched_single_barcode(
+            self,
+            fastq_demuxer):
+        known_barcodes = [
+            "AAAAAA",
+            "BBBBBB",
+            "CCCCCC"
+            "BCBCBC"
+        ]
+        assert fastq_demuxer.match_mismatched_single_barcode(
+            "BBBBBB",
+            known_barcodes) == ("BBBBBB", 0)
+        assert fastq_demuxer.match_mismatched_single_barcode(
+            "BBBCBB",
+            known_barcodes) == ("BBBBBB", 1)
+        assert fastq_demuxer.match_mismatched_single_barcode(
+            "BBCCBB",
+            known_barcodes) == ("", -1)
+        fastq_demuxer.mismatches = 2
+        assert fastq_demuxer.match_mismatched_single_barcode(
+            "BBCCBB",
+            known_barcodes) == ("BBBBBB", 2)
+        with pytest.raises(Exception):
+            fastq_demuxer.mismatches = 3
+            fastq_demuxer.match_mismatched_single_barcode(
+                "CBCBCB",
+                known_barcodes)
+
+    def test_single_index_match_mismatched_barcode(
+            self,
+            fastq_demuxer):
+        known_barcodes = [
+            "AAAAAA",
+            "BBBBBB",
+            "CCCCCC"
+            "BCBCBC"
+        ]
+        expected_mismatched_barcodes = {
+            "BBBBBB": ("BBBBBB", 0, "BBBBBB"),
+            "BBBCBB": ("BBBBBB", 1, "BBBBBB"),
+            "BBCCBB": (fastq_demuxer.unknown_barcode, 0, "BBCCBB")
+        }
+        fastq_demuxer.demultiplex_results = self._get_demultiplex_results(known_barcodes)
+        for barcode in expected_mismatched_barcodes.keys():
+            fastq_demuxer.match_mismatched_barcode(barcode)
+        assert fastq_demuxer.mismatched_barcodes == expected_mismatched_barcodes
+
+    def test_dual_index_match_mismatched_barcode(
+            self,
+            fastq_demuxer):
+        known_barcodes = [
+            "AAAAAA+BBBBBB",
+            "BBBBBB+CCCCCC",
+            "BCBCBC+CBCBCB"
+        ]
+        expected_mismatched_barcodes = {
+            "BBBBBB+CCCCCC": ("BBBBBB+CCCCCC", 0, "BBBBBB+CCCCCC"),
+            "BBBCBB+CCCCCC": ("BBBBBB+CCCCCC", 1, "BBBBBB+CCCCCC"),
+            "BBCCBB+CCCCCC": (fastq_demuxer.unknown_barcode, 0, "BBCCBB+CCCCCC"),
+            "BCBCBC+CBCCCB": ("BCBCBC+CBCBCB", 1, "BCBCBC+CBCBCB"),
+            "BCBBBC+CBCCCB": ("BCBCBC+CBCBCB", 1, "BCBCBC+CBCBCB"),
+            "CBCBCB+BCBCBC": (fastq_demuxer.unknown_barcode, 0, "CBCBCB+BCBCBC")
+        }
+        fastq_demuxer.demultiplex_results = self._get_demultiplex_results(known_barcodes)
+        for barcode in expected_mismatched_barcodes.keys():
+            fastq_demuxer.match_mismatched_barcode(barcode)
+        assert fastq_demuxer.mismatched_barcodes == expected_mismatched_barcodes
+
+    def test_demultiplex_record(self, fastq_demuxer):
+        fastq_record = [[""]]
+        known_barcodes = [
+            "AAAAAA",
+            "BBBBBB",
+            "CCCCCC",
+            "BCBCBC"
+        ]
+        expected_mismatched_barcodes = {
+            "BBBBBB": ("BBBBBB", 0, "BBBBBB"),
+            "BBBCBB": ("BBBBBB", 1, "BBBBBB"),
+            "BBCCBB": (fastq_demuxer.unknown_barcode, 0, "BBCCBB")
+        }
+        fastq_demuxer.demultiplex_results = self._get_demultiplex_results(known_barcodes)
+        for test_barcode, expected_barcode in zip(
+                ["BBBBBB", "BBBCBB", "BBCCBB"],
+                [known_barcodes[1], known_barcodes[1], fastq_demuxer.unknown_barcode]):
+            fastq_demuxer.demultiplex_record(fastq_record, test_barcode)
+            fastq_demuxer._write_matching_barcode.assert_called_once_with(
+                fastq_record,
+                expected_barcode)
+            fastq_demuxer._write_matching_barcode.reset_mock()
+        assert fastq_demuxer.mismatched_barcodes == expected_mismatched_barcodes
+        assert fastq_demuxer.demultiplex_results.summarize_counts() == [
+            ("BBBBBB", 2, 66.7),
+            ("BBCCBB", 1, 33.3)]
 
 
 class TestDemultiplexResults:

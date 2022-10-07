@@ -10,7 +10,7 @@ from .context import fastq_demux
 from fastq_demux.parser import FastqFileParserHeaderIndex, FastqFileParserI1, FastqFileParserI2, \
     SampleSheetParser
 from fastq_demux.writer import FastqFileWriter, FastqFileWriterHandler
-from fastq_demux.demux import DemultiplexResults
+from fastq_demux.demux import DemultiplexResults, FastqDemultiplexer
 
 
 @pytest.fixture
@@ -200,10 +200,10 @@ def _mock_fastq_parser(mock_fastq_records, parser_class):
     def _fastq_records():
         yield from mock_fastq_records
 
-    parser = mock.MagicMock(spec=parser_class)
-    parser.return_value.fastq_records.side_effect = _fastq_records
-    parser.return_value.barcode_from_record = parser_class.barcode_from_record
-    return parser.return_value
+    parser = mock.MagicMock(spec=parser_class).return_value
+    parser.fastq_records.side_effect = _fastq_records
+    parser.barcode_from_record = parser_class.barcode_from_record
+    return parser
 
 
 @pytest.fixture
@@ -288,3 +288,35 @@ def demultiplex_results(barcode_counts, samplesheet_parser):
     for barcode, count in barcode_counts.items():
         results.add(barcode, n=count)
     return results
+
+
+def _mock_barcode_to_sample_mapping(fastq_records):
+    return {
+        barcode: f"sample_{i}"
+        for i, barcode in enumerate(
+            set([
+                record[1] for record in fastq_records]))}
+
+
+@pytest.fixture
+def single_barcode_to_sample_mapping(single_end_single_index_fastq_records):
+    return _mock_barcode_to_sample_mapping(single_end_single_index_fastq_records)
+
+
+@pytest.fixture
+def dual_barcode_to_sample_mapping(single_end_dual_index_fastq_records):
+    return _mock_barcode_to_sample_mapping(single_end_dual_index_fastq_records)
+
+
+@pytest.fixture
+def fastq_demuxer(
+        single_end_single_index_fastq_parser,
+        single_end_single_index_fastq_writer,):
+    demuxer = FastqDemultiplexer.create_fastq_demultiplexer(
+        single_end_single_index_fastq_parser,
+        single_end_single_index_fastq_writer,
+        DemultiplexResults(barcode_to_sample_mapping={}),
+        "this-is-an-unknown-barcode",
+        mismatches=1)
+    demuxer._write_matching_barcode = mock.Mock()
+    return demuxer

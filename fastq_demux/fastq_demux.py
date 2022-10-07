@@ -13,6 +13,7 @@ def _validate_index_files(ctx, param, value):
         raise click.UsageError(
             "you must also specify an I1 index file specifying an I2 index file. Note that the "
             "order of the options matter: --I1 should occur before --I2")
+    return value
 
 
 @click.command()
@@ -60,6 +61,12 @@ def _validate_index_files(ctx, param, value):
         resolve_path=True),
     help="Sample sheet containing the barcode to sample-id mapping")
 @click.option(
+    "--mismatches",
+    required=False,
+    type=click.INT,
+    default=0,
+    help="Number of mismatches allowed in each index read")
+@click.option(
     "--prefix",
     required=False,
     type=click.STRING,
@@ -89,7 +96,17 @@ def _validate_index_files(ctx, param, value):
     show_default=True,
     help="skip gzip-compression of output FASTQ files"
 )
-def demultiplex(r1, r2, i1, i2, samplesheet, prefix, unknown_barcode, outdir, no_gzip_compression) -> None:
+def demultiplex(
+        r1,
+        r2,
+        i1,
+        i2,
+        samplesheet,
+        mismatches,
+        prefix,
+        unknown_barcode,
+        outdir,
+        no_gzip_compression) -> None:
     samplesheet_parser = SampleSheetParser(samplesheet_file=samplesheet)
     barcode_to_sample_mapping = samplesheet_parser.get_barcode_to_sample_mapping()
     barcode_to_sample_mapping[unknown_barcode] = "barcode"
@@ -103,11 +120,12 @@ def demultiplex(r1, r2, i1, i2, samplesheet, prefix, unknown_barcode, outdir, no
     fastq_parser = FastqFileParser.create_fastq_file_parser(
         fastq_r1=r1, fastq_r2=r2, fastq_i1=i1, fastq_i2=i2)
     results = DemultiplexResults(barcode_to_sample_mapping=barcode_to_sample_mapping)
-    demultiplexer: FastqDemultiplexer = FastqDemultiplexer(
+    demultiplexer: FastqDemultiplexer = FastqDemultiplexer.create_fastq_demultiplexer(
         fastq_parser=fastq_parser,
         fastq_writer=file_writer_handler,
         demultiplex_results=results,
-        unknown_barcode=unknown_barcode)
+        unknown_barcode=unknown_barcode,
+        mismatches=mismatches)
     demultiplexer.demultiplex()
     stats_file: str = os.path.join(
         outdir,

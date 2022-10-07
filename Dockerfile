@@ -20,6 +20,7 @@ ENV PATH=/root/.local:$PATH
 
 # install the code
 RUN pip install -e . -r requirements.txt
+RUN chmod -R +rx /code
 
 ENTRYPOINT [ "fastq_demux" ]
 CMD [ "--help" ]
