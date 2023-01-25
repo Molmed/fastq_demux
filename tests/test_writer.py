@@ -7,18 +7,19 @@ from unittest import mock
 from .context import fastq_demux
 from fastq_demux.writer import FastqFileWriter, FastqFileWriterHandler
 from fastq_demux.parser import FastqFileParser
-from fastq_demux.demux import FastqDemultiplexer
 
 
 class TestFastqFileWriter:
 
-    def test_write_record(self, fastq_records, fastq_output_file_r1):
+    def test_write_record(self, single_end_single_index_fastq_records, fastq_output_file_r1):
         writer = FastqFileWriter(fastq_output_file_r1)
-        for record in fastq_records:
+        for record, barcode in single_end_single_index_fastq_records:
             writer.write_record(record[0])
         writer.close_handle()
-        parser = FastqFileParser(fastq_output_file_r1)
-        assert list(parser.fastq_records()) == [[record[0]] for record in fastq_records]
+        parser = FastqFileParser.create_fastq_file_parser(fastq_output_file_r1)
+        assert \
+            list(parser.fastq_records()) == \
+            [([record[0]], barcode) for record, barcode in single_end_single_index_fastq_records]
 
 
 class TestFastqFileWriterHandler:
@@ -93,22 +94,28 @@ class TestFastqFileWriterHandler:
                 assert barcode in barcode_to_sample_mapping
                 assert writer == "-".join([barcode_to_sample_mapping[barcode], barcode])
 
-    def test_write_fastq_record(self, fastq_writer, fastq_records):
+    def test_write_fastq_record(
+            self,
+            single_end_single_index_fastq_writer,
+            single_end_single_index_fastq_records):
         # make sure that an unknown barcode throws a KeyError
         with pytest.raises(KeyError):
-            barcode = FastqDemultiplexer.barcode_from_record(fastq_records[0][0])
-            fastq_writer.write_fastq_record(barcode, fastq_records[0])
+            barcode = single_end_single_index_fastq_records[0][1]
+            single_end_single_index_fastq_writer.write_fastq_record(
+                barcode,
+                single_end_single_index_fastq_records[0][0])
 
         # write the unknown barcode record using the "Unknown" barcode
-        fastq_writer.write_fastq_record("Unknown", fastq_records[0])
+        single_end_single_index_fastq_writer.write_fastq_record(
+            "Unknown",
+            single_end_single_index_fastq_records[0][0])
         assert all(
             [writer.write_record.call_count == 1
-             for writer in fastq_writer.fastq_file_writers["Unknown"]])
+             for writer in single_end_single_index_fastq_writer.fastq_file_writers["Unknown"]])
 
         # the rest should have known barcodes
-        for record in fastq_records[1:]:
-            barcode = FastqDemultiplexer.barcode_from_record(record[0])
-            fastq_writer.write_fastq_record(barcode, record)
+        for record, barcode in single_end_single_index_fastq_records[1:]:
+            single_end_single_index_fastq_writer.write_fastq_record(barcode, record)
             assert all(
                 [writer.write_record.call_count == 1
-                 for writer in fastq_writer.fastq_file_writers[barcode]])
+                 for writer in single_end_single_index_fastq_writer.fastq_file_writers[barcode]])

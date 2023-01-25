@@ -43,9 +43,21 @@ folder. In addition, the reads not matching any of the barcodes in the sample sh
 files for unknown barcodes. Summary statistics on the number of reads per barcode etc. are written to a json-formatted 
 output file.
 
+If the index sequences to be used for demultiplexing are available as regular reads in separate FASTQ files, you can 
+specify these with the `--I1` (for the i7-index) and, in the case of dual index, `--I2` (for the i5-index) parameters. 
+Any index information present in the FASTQ headers will in that case be ignored.
+
+```
+fastq_demux \
+  --R1 tests/dual-index_Undetermined_S0_L001_R1_001.fastq.gz \
+  --I1 tests/dual-index_Undetermined_S0_L001_I1_001.fastq.gz \
+  --I2 tests/dual-index_Undetermined_S0_L001_I2_001.fastq.gz \
+  --samplesheet tests/samplesheet.tsv
+```
+
 ### Sample sheet
 The sample sheet should have two or three columns for single or dual index reads, respectively. The columns are 
-`SampleID`, `P5-index` and `P7-index`.
+`SampleID`, `P7-index` and `P5-index`.
 
 Here is an example for a sample sheet accompanying a dual-index FASTQ file:
 ```

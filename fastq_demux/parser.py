@@ -1,6 +1,7 @@
 
+from __future__ import annotations
 import gzip
-from typing import Callable, Dict, Iterator, List, Optional, TextIO
+from typing import Callable, Dict, Iterator, List, Optional, TextIO, Tuple
 
 
 class FastqFileParser:
@@ -8,16 +9,54 @@ class FastqFileParser:
     Class that handles parsing of a single-end FASTQ file or a paired-end FASTQ file pair
     """
 
-    def __init__(self, fastq_r1: str, fastq_r2: Optional[str] = None):
+    def __init__(
+            self,
+            fastq_r1: str,
+            fastq_r2: Optional[str] = None,
+            fastq_i1: Optional[str] = None,
+            fastq_i2: Optional[str] = None):
         """
         Create a new FastqFileParser instance
 
         :param fastq_r1: the path to the FASTQ file with forward reads (R1)
         :param fastq_r2: for paired-end, the path to the FASTQ file with reverse reads (R2)
+        :param fastq_i1: the path to an optional FASTQ file with sequenced index i7 reads (I1).
+                    If specified, will override any i7 index sequence in the FASTQ headers
+        :param fastq_i2: the path to an optional FASTQ file with sequenced index i5 reads (I1).
+                    If specified, will override any i5 index sequence in the FASTQ headers
         """
         self.fastq_r1: str = fastq_r1
         self.fastq_r2: Optional[str] = fastq_r2
+        self.fastq_i1: Optional[str] = fastq_i1
+        self.fastq_i2: Optional[str] = fastq_i2
         self.is_single_end: bool = self.fastq_r2 is None
+        self.i7_in_header: bool = self.fastq_i1 is None
+        self.i5_in_header: bool = self.fastq_i2 is None
+
+    @classmethod
+    def create_fastq_file_parser(
+            cls,
+            fastq_r1: str,
+            fastq_r2: Optional[str] = None,
+            fastq_i1: Optional[str] = None,
+            fastq_i2: Optional[str] = None) -> FastqFileParser:
+        if fastq_i1 is None:
+            return FastqFileParserHeaderIndex(
+                fastq_r1=fastq_r1,
+                fastq_r2=fastq_r2
+            )
+        if fastq_i2 is None:
+            return FastqFileParserI1(
+                fastq_r1=fastq_r1,
+                fastq_r2=fastq_r2,
+                fastq_i1=fastq_i1
+            )
+        return FastqFileParserI2(
+            fastq_r1=fastq_r1,
+            fastq_r2=fastq_r2,
+            fastq_i1=fastq_i1,
+            fastq_i2=fastq_i2
+        )
 
     @classmethod
     def _ensure_generator_empty(cls, gen: Iterator) -> bool:
@@ -37,7 +76,7 @@ class FastqFileParser:
         """
         return all([self._ensure_generator_empty(handle) for handle in handles])
 
-    def fastq_records(self) -> Iterator[List[List[str]]]:
+    def fastq_records(self) -> Iterator[Tuple[List[List[str]], str]]:
         """
         Iterates over the FASTQ files
 
@@ -47,25 +86,36 @@ class FastqFileParser:
         :raises Exception: if, for paired-end, the supplied FASTQ files don't contain the same
         number of reads
         """
-        handles: List[TextIO] = self.get_file_handles()
+        read_handles, index_handles = self.get_file_handles()
         try:
             while True:
-                yield [[next(handle).strip() for _ in range(4)] for handle in handles]
+                yield self.records_from_handles(
+                    read_handles=read_handles, index_handles=index_handles)
         except StopIteration:
             pass
-        if not self.ensure_filehandles_empty(handles):
-            raise Exception(
-                f"Fastq files {self.fastq_r1} and {self.fastq_r2} are not of the same length!")
+        if not self.ensure_filehandles_empty(read_handles + index_handles):
+            msg = f"All FASTQ files are not of the same length:\n"
+            msg += "\n".join(
+                [
+                    f"\t{fq}"
+                    for fq in (self.fastq_r1, self.fastq_r2, self.fastq_i1, self.fastq_i2)
+                    if fq is not None])
+            raise Exception(msg)
 
-    def get_file_handles(self) -> List[TextIO]:
+    def get_file_handles(self) -> Tuple[List[TextIO], List[TextIO]]:
         """
         Opens the FASTQ files for reading and returns file handles
 
         :return: a list of file handles to the opened FASTQ file(s)
         """
-        handles: List[TextIO] = [self._file_parser_handle(self.fastq_r1)]
-        if not self.is_single_end:
-            handles.append(self._file_parser_handle(self.fastq_r2))
+        handles: Tuple[List[TextIO], List[TextIO]] = ([self._file_parser_handle(self.fastq_r1)], [])
+        for tuple_index, flag, fqfile in zip(
+                [0, 1, 1],
+                [self.is_single_end, self.i7_in_header, self.i5_in_header],
+                [self.fastq_r2, self.fastq_i1, self.fastq_i2]):
+            if not flag:
+                handles[tuple_index].append(self._file_parser_handle(fqfile))
+
         return handles
 
     @classmethod
@@ -84,6 +134,73 @@ class FastqFileParser:
     def _file_parser_handle(self, input_file: str) -> TextIO:
         with self.open_func(input_file)(input_file, 'rt') as file_handle:
             yield from file_handle
+
+    @classmethod
+    def barcode_from_record(cls, record: List[List[str]]) -> str:
+        raise NotImplementedError
+
+    def records_from_handles(
+            self,
+            read_handles: List[TextIO],
+            index_handles: List[TextIO]) -> Tuple[List[List[str]], str]:
+        return [self.record_from_handle(handle) for handle in read_handles], \
+                self.barcode_from_record(
+                    [self.record_from_handle(handle) for handle in index_handles])
+
+    @classmethod
+    def record_from_handle(cls, handle: TextIO) -> List[str]:
+        return [next(handle).strip() for _ in range(4)]
+
+
+class FastqFileParserHeaderIndex(FastqFileParser):
+
+    @classmethod
+    def barcode_from_record(cls, record: List[List[str]]) -> str:
+        """
+        Extract the barcode from a FASTQ read header. The header is expected to be ":"-delimited
+        according to the bcl2fastq output format and the barcode is expected to be the last element
+        when splitting on ":"
+
+        :param record: a list of strings representing a set of FASTQ reads. Only the first element
+        (the header string) of the first read will be accessed
+        :return: the barcode string parsed from the header
+        """
+        return record[0][0].split(":")[-1]
+
+    def records_from_handles(
+            self,
+            read_handles: List[TextIO],
+            index_handles: List[TextIO]) -> Tuple[List[List[str]], str]:
+        records = [self.record_from_handle(handle) for handle in read_handles]
+        return records, self.barcode_from_record(records)
+
+
+class FastqFileParserI1(FastqFileParser):
+
+    @classmethod
+    def barcode_from_record(cls, record: List[List[str]]) -> str:
+        """
+        Extract the barcode from a FASTQ index file. The single-index sequence will be in the last
+        record in the list passed as input.
+
+        :param record: a list of strings representing a set of FASTQ reads.
+        :return: the barcode string present as a sequence in the FASTQ index file
+        """
+        return record[-1][1]
+
+
+class FastqFileParserI2(FastqFileParser):
+
+    @classmethod
+    def barcode_from_record(cls, record: List[List[str]]) -> str:
+        """
+        Extract the barcode from a pair of FASTQ index files. The dual-index sequence will be in
+        the two last records in the list passed as input.
+
+        :param record: a list of strings representing a set of FASTQ reads.
+        :return: the barcode string present as a sequence in the FASTQ index files
+        """
+        return f"{record[-2][1]}+{record[-1][1]}"
 
 
 class SampleSheetParser:
