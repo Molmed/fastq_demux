@@ -18,7 +18,7 @@ A simple program to demultiplex Illumina FASTQ files based on barcodes in the FA
 
 ```
 git clone https://github.com/Molmed/fastq_demux.git
-pip install -r requirements.txt
+pip install -r requirements.txt .
 ```
 Alternatively, use a docker image (see [below](#docker)).
 
@@ -35,7 +35,9 @@ file with forward reads (with `--R1`), reverse reads (with `--R2`, if paired-end
 providing a barcode-to-sample mapping (with `--samplesheet`). 
 
 ```
-fastq_demux --R1 tests/dual-index-short_Undetermined_S0_L001_R1_001.fastq.gz --samplesheet tests/samplesheet.tsv
+fastq_demux \
+  --R1 tests/dual-index-short_Undetermined_S0_L001_R1_001.fastq.gz \
+  --samplesheet tests/samplesheet.tsv
 ```
 
 For each sample, a forward (R1) and a reverse (R2, if input is paired-end) FASTQ file will be written to the output 
@@ -54,6 +56,13 @@ fastq_demux \
   --I2 tests/dual-index_Undetermined_S0_L001_I2_001.fastq.gz \
   --samplesheet tests/samplesheet.tsv
 ```
+
+### Barcode mismatches
+It is possible to allow mismatches when comparing the read barcode to the samplesheet barcodes with the `--mismatches` 
+parameter. In case of dual indexes, the number of mismathces are tolerated for each index independently.
+Note that if a read barcode cannot be unambiguously matched to a samplesheet barcode, an exception will be thrown and
+the number of allowed mismatches must be decreased.
+
 
 ### Sample sheet
 The sample sheet should have two or three columns for single or dual index reads, respectively. The columns are 
