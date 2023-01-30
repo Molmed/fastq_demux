@@ -230,6 +230,7 @@ class SampleSheetParser:
         """
         barcode_to_sample: Dict[str, str] = dict()
         for row in self.get_file_handle():
-            pcs: List[str] = row.strip().split("\t")
-            barcode_to_sample["+".join(pcs[1:])] = pcs[0]
+            pcs: List[str] = [r.strip() for r in row.strip().split("\t")]
+            if len(pcs) > 1 and all([len(p) > 0 for p in pcs]):
+                barcode_to_sample["+".join(pcs[1:])] = pcs[0]
         return barcode_to_sample
