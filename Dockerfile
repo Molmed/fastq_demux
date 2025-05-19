@@ -1,5 +1,5 @@
 # first stage
-FROM python:3.7 AS builder
+FROM python:3.13 AS builder
 
 COPY requirements.txt .
 COPY requirements/* ./requirements/
@@ -8,7 +8,7 @@ COPY requirements/* ./requirements/
 RUN pip install --user -r requirements.txt
 
 # second unnamed stage
-FROM python:3.7-slim
+FROM python:3.13-slim
 WORKDIR /code
 
 # copy only the dependencies installation from the 1st stage image
