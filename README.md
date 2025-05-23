@@ -95,7 +95,7 @@ Example usage with a data directory mounted into the container from the local fi
 ```
 docker run -v $(pwd)/tests:/data fastq_demux:master \
 --R1 /data/dual-index-short_Undetermined_S0_L001_R1_001.fastq.gz \
---samplesheet /data/samplesheet.tsv
+--samplesheet /data/samplesheet_dual_index.tsv
 ```
 
 ## Performance
